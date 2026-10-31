@@ -1,0 +1,73 @@
+[project]
+name = "airwatch"
+version = "0.1.0"
+description = "Real-time air quality anomaly detection and investigation system for Israel"
+requires-python = ">=3.10"
+dependencies = [
+    # Data
+    "httpx>=0.27",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "pyarrow>=15.0",
+
+    # ML
+    "scikit-learn>=1.4",
+    "torch>=2.2",
+
+    # Agents & LLM
+    "langgraph>=0.2",
+    "langchain>=0.3",
+    "langchain-anthropic>=0.2",
+    "chromadb>=0.5",
+
+    # API & Dashboard
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "streamlit>=1.39",
+    "folium>=0.18",
+    "plotly>=5.24",
+
+    # Schemas & Validation
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+
+    # Logging
+    "structlog>=24.4",
+
+    # AWS
+    "boto3>=1.35",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+]
+gnn = [
+    "torch-geometric>=2.6",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "TCH"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
