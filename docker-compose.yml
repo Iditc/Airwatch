@@ -1,0 +1,20 @@
+services:
+  airwatch:
+    build: .
+    env_file: .env
+    volumes:
+      - ./src:/app/src
+      - ./configs:/app/configs
+    ports:
+      - "8000:8000"
+
+  dashboard:
+    build: .
+    env_file: .env
+    command: ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501"]
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "8501:8501"
+    depends_on:
+      - airwatch

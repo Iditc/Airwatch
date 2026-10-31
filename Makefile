@@ -1,4 +1,4 @@
-.PHONY: lint format typecheck test all
+.PHONY: lint format typecheck test all up down
 
 lint:
 	ruff check src/ tests/
@@ -13,3 +13,9 @@ test:
 	pytest --cov=src --cov-report=term-missing
 
 all: lint typecheck test
+
+up:
+	docker compose up --build -d
+
+down:
+	docker compose down
