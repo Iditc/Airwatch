@@ -71,6 +71,29 @@ class TestGetStations:
         assert stations[0].pollutants == []
 
 
+class TestGetSensorIds:
+    def test_parses_sensors(self, mock_client: OpenAQClient) -> None:
+        mock_response = {
+            "results": [
+                {
+                    "sensors": [
+                        {"id": 101, "parameter": {"name": "pm25"}},
+                        {"id": 102, "parameter": {"name": "no2"}},
+                    ]
+                }
+            ]
+        }
+        with patch.object(mock_client, "_get", return_value=mock_response):
+            sensors = mock_client.get_sensor_ids(location_id=100)
+        assert sensors == {"pm25": 101, "no2": 102}
+
+    def test_empty_sensors(self, mock_client: OpenAQClient) -> None:
+        mock_response: dict[str, list[dict[str, list[object]]]] = {"results": [{"sensors": []}]}
+        with patch.object(mock_client, "_get", return_value=mock_response):
+            sensors = mock_client.get_sensor_ids(location_id=100)
+        assert sensors == {}
+
+
 class TestGetMeasurements:
     def test_parses_measurements(self, mock_client: OpenAQClient) -> None:
         mock_response = {
@@ -83,7 +106,7 @@ class TestGetMeasurements:
             ]
         }
         with patch.object(mock_client, "_get", return_value=mock_response):
-            readings = mock_client.get_measurements(location_id=100)
+            readings = mock_client.get_measurements(sensor_id=101, station_id="100")
         assert len(readings) == 1
         assert readings[0].pollutant == "pm25"
         assert readings[0].value == 42.5

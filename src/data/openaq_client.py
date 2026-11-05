@@ -71,7 +71,7 @@ class OpenAQClient:
                 StationInfo(
                     station_id=str(loc["id"]),
                     name=loc["name"],
-                    city=loc.get("locality", "Unknown"),
+                    city=loc.get("locality") or "Unknown",
                     latitude=loc["coordinates"]["latitude"],
                     longitude=loc["coordinates"]["longitude"],
                     pollutants=pollutants,
@@ -80,33 +80,43 @@ class OpenAQClient:
         logger.info("fetched_stations", count=len(stations))
         return stations
 
+    def get_sensor_ids(self, location_id: int) -> dict[str, int]:
+        """Get sensor IDs for a location, mapped by pollutant name."""
+        data = self._get(f"/locations/{location_id}")
+        sensors: dict[str, int] = {}
+        for s in data["results"][0].get("sensors", []):
+            sensors[s["parameter"]["name"]] = s["id"]
+        logger.info("fetched_sensors", station=location_id, sensors=list(sensors.keys()))
+        return sensors
+
     def get_measurements(
         self,
-        location_id: int,
+        sensor_id: int,
+        station_id: str = "",
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         limit: int = 1000,
     ) -> list[AQIReading]:
-        """Fetch measurements for a specific station."""
+        """Fetch measurements for a specific sensor."""
         params: dict[str, Any] = {"limit": limit}
         if date_from:
             params["date_from"] = date_from.isoformat()
         if date_to:
             params["date_to"] = date_to.isoformat()
 
-        data = self._get(f"/locations/{location_id}/measurements", params=params)
+        data = self._get(f"/sensors/{sensor_id}/measurements", params=params)
         readings = []
         for m in data["results"]:
             readings.append(
                 AQIReading(
-                    station_id=str(location_id),
+                    station_id=station_id,
                     timestamp=m["period"]["datetimeTo"]["utc"],
                     pollutant=m["parameter"]["name"],
                     value=m["value"],
                     unit=m["parameter"]["units"],
                 )
             )
-        logger.info("fetched_measurements", station=location_id, count=len(readings))
+        logger.info("fetched_measurements", sensor=sensor_id, count=len(readings))
         return readings
 
     def close(self) -> None:
