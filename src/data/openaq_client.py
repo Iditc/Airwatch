@@ -34,8 +34,15 @@ class OpenAQClient:
                 result: dict[str, Any] = response.json()
                 return result
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429:
-                    logger.warning("rate_limited", attempt=attempt, endpoint=endpoint)
+                if e.response.status_code in (408, 429, 500, 502, 503, 504):
+                    logger.warning(
+                        "retryable_error",
+                        status=e.response.status_code,
+                        attempt=attempt,
+                        endpoint=endpoint,
+                    )
+                    if attempt == self.max_retries:
+                        raise
                     time.sleep(2**attempt)
                     continue
                 logger.error("http_error", status=e.response.status_code, endpoint=endpoint)
@@ -97,25 +104,43 @@ class OpenAQClient:
         date_to: datetime | None = None,
         limit: int = 1000,
     ) -> list[AQIReading]:
-        """Fetch measurements for a specific sensor."""
-        params: dict[str, Any] = {"limit": limit}
-        if date_from:
-            params["date_from"] = date_from.isoformat()
-        if date_to:
-            params["date_to"] = date_to.isoformat()
+        """Fetch measurements for a specific sensor with pagination."""
+        page_size = min(limit, 1000)
+        collected = 0
+        page = 1
+        readings: list[AQIReading] = []
 
-        data = self._get(f"/sensors/{sensor_id}/measurements", params=params)
-        readings = []
-        for m in data["results"]:
-            readings.append(
-                AQIReading(
-                    station_id=station_id,
-                    timestamp=m["period"]["datetimeTo"]["utc"],
-                    pollutant=m["parameter"]["name"],
-                    value=m["value"],
-                    unit=m["parameter"]["units"],
+        while collected < limit:
+            params: dict[str, Any] = {"limit": page_size, "page": page}
+            if date_from:
+                params["date_from"] = date_from.isoformat()
+            if date_to:
+                params["date_to"] = date_to.isoformat()
+
+            data = self._get(f"/sensors/{sensor_id}/measurements", params=params)
+            results = data["results"]
+            if not results:
+                break
+
+            for m in results:
+                if m["value"] is None:
+                    continue
+                readings.append(
+                    AQIReading(
+                        station_id=station_id,
+                        timestamp=m["period"]["datetimeTo"]["utc"],
+                        pollutant=m["parameter"]["name"],
+                        value=m["value"],
+                        unit=m["parameter"]["units"],
+                    )
                 )
-            )
+
+            collected += len(results)
+            if len(results) < page_size:
+                break
+            page += 1
+            time.sleep(0.3)
+
         logger.info("fetched_measurements", sensor=sensor_id, count=len(readings))
         return readings
 
