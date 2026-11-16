@@ -452,6 +452,10 @@ def run_pollutant(
 
         model_path = MODELS_DIR / f"xgboost_{pollutant}_{horizon}h.joblib"
         joblib.dump(model, model_path)
+        joblib.dump(
+            {"threshold": best_t, "features": all_features},
+            MODELS_DIR / f"xgboost_{pollutant}_{horizon}h_meta.joblib",
+        )
         if params:
             joblib.dump(params, MODELS_DIR / f"xgboost_{pollutant}_{horizon}h_params.joblib")
 
