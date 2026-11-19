@@ -54,10 +54,10 @@ class RootCauseAnalysis(BaseModel):
     event_id: str
     probable_cause: str = Field(description="Most likely cause of the anomaly")
     known_source_match: str | None = Field(
-        default=None, description="Matched known pollution source from knowledge base"
+        default=None, description="Stable knowledge-base record ID for a matched pollution source"
     )
     historical_match: str | None = Field(
-        default=None, description="Similar historical event if found"
+        default=None, description="Stable knowledge-base record ID for a similar historical event"
     )
     confidence: float = Field(ge=0.0, le=1.0)
     reasoning: str = Field(description="Step-by-step reasoning")
