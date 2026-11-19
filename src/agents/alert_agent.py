@@ -1,5 +1,6 @@
 """Alert Agent — generates human-readable alerts from anomaly events using Claude."""
 
+import json
 import os
 import smtplib
 from datetime import datetime, timezone
@@ -80,8 +81,6 @@ class AlertAgent:
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
         )
-
-        import json
 
         text = next((block.text for block in response.content if block.type == "text"), "{}")
         text = text.strip()

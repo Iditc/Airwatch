@@ -25,8 +25,6 @@ logger = structlog.get_logger(__name__)
 EVENTS_DIR = Path("data/events")
 LOOKBACK_HOURS = 48
 
-LAG_HOURS = [1, 2, 3, 6, 12]
-
 SEASON_MAP = {
     12: "winter",
     1: "winter",
@@ -76,13 +74,6 @@ def build_features(measurements: pd.DataFrame) -> pd.DataFrame:
         )
 
     df["rate_of_change"] = df.groupby(["station_id", "pollutant"])["value"].diff().fillna(0)
-
-    for lag in LAG_HOURS:
-        col = f"value_lag_{lag}h"
-        df[col] = df.groupby(["station_id", "pollutant"])["value"].shift(lag)
-        df[f"value_diff_{lag}h"] = df["value"] - df[col]
-    lag_cols = [c for c in df.columns if c.startswith("value_lag_") or c.startswith("value_diff_")]
-    df[lag_cols] = df[lag_cols].fillna(0)
 
     for pollutant, cfg in WHO_THRESHOLDS.items():
         mask = df["pollutant"] == pollutant

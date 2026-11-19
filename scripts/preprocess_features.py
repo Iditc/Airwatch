@@ -51,7 +51,7 @@ def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df["hour"] = df["timestamp"].dt.hour
     df["day_of_week"] = df["timestamp"].dt.dayofweek
     df["month"] = df["timestamp"].dt.month
-    df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
+    df["is_weekend"] = df["day_of_week"].isin([4, 5]).astype(int)
 
     month_to_season = {
         12: "winter",
@@ -130,6 +130,8 @@ def add_anomaly_labels(df: pd.DataFrame) -> pd.DataFrame:
     df["label_who"] = 0
     results = []
     for (_station_id, pollutant), group in df.groupby(["station_id", "pollutant"]):
+        if pollutant not in WHO_THRESHOLDS:
+            continue
         group = group.sort_values("timestamp").copy()
         who = WHO_THRESHOLDS[pollutant]
         window = who["window_hours"]

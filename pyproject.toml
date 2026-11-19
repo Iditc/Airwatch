@@ -15,6 +15,7 @@ dependencies = [
     "torch>=2.2",
 
     # Agents & LLM
+    "anthropic>=0.40",
     "langgraph>=0.2",
     "langchain>=0.3",
     "langchain-anthropic>=0.2",
@@ -26,6 +27,9 @@ dependencies = [
     "streamlit>=1.39",
     "folium>=0.18",
     "plotly>=5.24",
+
+    # Config
+    "python-dotenv>=1.0",
 
     # Schemas & Validation
     "pydantic>=2.9",
