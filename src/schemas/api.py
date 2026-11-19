@@ -8,7 +8,7 @@ class StationInfo(BaseModel):
 
     station_id: str
     name: str
-    city: str
+    city: str = "Unknown"
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     pollutants: list[str] = Field(description="Pollutants measured at this station")
