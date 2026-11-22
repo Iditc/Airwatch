@@ -29,6 +29,19 @@ ENVISTA_MAP: dict[str, str] = {
     "6421": "184",
 }
 
+# Correct coordinates from Envista API (MoEP).
+# OpenAQ coordinates are wrong for most Israeli stations.
+STATION_COORDINATES: dict[str, tuple[float, float]] = {
+    "4938": (32.81707628, 35.00236365),  # Atzmaout Haifa
+    "5923": (32.78746681, 35.02135697),  # Neve Sha'anan, Haifa
+    "6421": (30.94577108, 35.38825659),  # Neot HaKikar, Dead Sea
+    "6435": (32.10162000, 34.79550000),  # Shikun Bavli, Tel Aviv
+    "6524": (32.06223440, 34.77734640),  # Tahana Merkazit, Tel Aviv
+    "6635": (31.78052907, 35.22471397),  # Shprintzak, Jerusalem
+    "11049": (32.08428157, 34.78260353),  # Antokolsky, Tel Aviv
+    "11056": (32.81190393, 35.11309389),  # B.Eliezer, Haifa
+}
+
 
 def migrate_stations(conn: sqlite3.Connection) -> None:
     stations_df = pd.read_parquet(RAW_DIR / "stations.parquet")
@@ -47,14 +60,15 @@ def migrate_stations(conn: sqlite3.Connection) -> None:
         sid = str(r["station_id"])
         name = str(r["name"])
         short = name.replace("תחנה:", "").strip() if "תחנה:" in name else name
+        lat, lon = STATION_COORDINATES.get(sid, (r.get("latitude"), r.get("longitude")))
         rows.append(
             (
                 sid,
                 name,
                 short,
                 r.get("city"),
-                r.get("latitude"),
-                r.get("longitude"),
+                lat,
+                lon,
                 r.get("pollutants"),
                 ENVISTA_MAP.get(sid),
             )
