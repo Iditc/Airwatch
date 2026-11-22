@@ -10,13 +10,13 @@ from src.data.firms_client import fetch_hotspots, find_nearby_fires
 
 
 def main() -> None:
-    days = 2
+    days = 5
     if len(sys.argv) > 1:
         days = int(sys.argv[1])
 
     print(f"Fetching FIRMS fire data ({days} days)...")
     hotspots = fetch_hotspots(days=days)
-    print(f"  {len(hotspots)} hotspots in Israel bounding box")
+    print(f"  {len(hotspots)} hotspots inside Israel (+10 km buffer)")
 
     if not hotspots:
         print("No fire data.")
