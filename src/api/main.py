@@ -9,6 +9,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.data.database import get_connection
+from src.data.firms_client import haversine_km
 from src.data.loader import ISRAEL_THRESHOLDS, WHO_THRESHOLDS
 from src.schemas.anomaly import AnomalyEvent
 from src.schemas.api import (
@@ -16,6 +17,7 @@ from src.schemas.api import (
     AQIReading,
     ExceedanceIsrael,
     ExceedanceWHO,
+    FireHotspot,
     HealthStatus,
     StationHealth,
     StationInfo,
@@ -272,6 +274,58 @@ async def get_station_health(station_id: str) -> StationHealth:
         pollutants_active=[r["pollutant"] for r in pollutants],
         coverage_pct=coverage,
     )
+
+
+@app.get("/fires/nearby", response_model=list[FireHotspot])
+async def get_fires_nearby(
+    station_id: str = Query(..., description="Station ID"),
+    radius_km: float = Query(50.0, ge=1, le=200, description="Search radius in km"),
+    days: int = Query(7, ge=1, le=30, description="Lookback days"),
+    limit: int = Query(100, ge=1, le=1000),
+) -> list[FireHotspot]:
+    conn = get_connection()
+    station = conn.execute(
+        "SELECT latitude, longitude FROM stations WHERE station_id = ?",
+        (station_id,),
+    ).fetchone()
+    if not station:
+        conn.close()
+        return []
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    rows = conn.execute(
+        "SELECT * FROM fire_hotspots WHERE acq_date >= ? ORDER BY acq_date DESC",
+        (cutoff,),
+    ).fetchall()
+    conn.close()
+
+    nearby = []
+    for r in rows:
+        dist = haversine_km(
+            station["latitude"],
+            station["longitude"],
+            r["latitude"],
+            r["longitude"],
+        )
+        if dist <= radius_km:
+            nearby.append(
+                FireHotspot(
+                    id=r["id"],
+                    latitude=r["latitude"],
+                    longitude=r["longitude"],
+                    acq_date=r["acq_date"],
+                    acq_time=r["acq_time"],
+                    satellite=r["satellite"],
+                    confidence=r["confidence"],
+                    frp=r["frp"],
+                    bright_ti4=r["bright_ti4"],
+                    daynight=r["daynight"],
+                    source=r["source"],
+                    distance_km=round(dist, 1),
+                )
+            )
+    nearby.sort(key=lambda x: x.distance_km or 999)
+    return nearby[:limit]
 
 
 @app.get("/anomalies", response_model=list[AnomalyEvent])

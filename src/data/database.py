@@ -72,6 +72,24 @@ CREATE TABLE IF NOT EXISTS agent_results (
 
 CREATE INDEX IF NOT EXISTS idx_agent_lookup
     ON agent_results(exceedance_type, exceedance_id);
+
+CREATE TABLE IF NOT EXISTS fire_hotspots (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    latitude   REAL    NOT NULL,
+    longitude  REAL    NOT NULL,
+    acq_date   TEXT    NOT NULL,
+    acq_time   TEXT    NOT NULL,
+    satellite  TEXT    NOT NULL,
+    confidence TEXT    NOT NULL,
+    frp        REAL,
+    bright_ti4 REAL,
+    daynight   TEXT,
+    source     TEXT    NOT NULL DEFAULT 'VIIRS_SNPP_NRT',
+    UNIQUE(latitude, longitude, acq_date, acq_time, satellite)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fire_lookup
+    ON fire_hotspots(acq_date, latitude, longitude);
 """
 
 

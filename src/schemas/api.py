@@ -87,6 +87,23 @@ class StationHealth(BaseModel):
     coverage_pct: float = Field(default=0.0, description="Data coverage over the last 7 days")
 
 
+class FireHotspot(BaseModel):
+    """A satellite-detected fire hotspot."""
+
+    id: int
+    latitude: float
+    longitude: float
+    acq_date: str
+    acq_time: str
+    satellite: str
+    confidence: str
+    frp: float | None = None
+    bright_ti4: float | None = None
+    daynight: str | None = None
+    source: str
+    distance_km: float | None = Field(default=None, description="Distance to queried station in km")
+
+
 class HealthStatus(BaseModel):
     """Health check response for the API."""
 

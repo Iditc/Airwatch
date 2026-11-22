@@ -3,6 +3,8 @@
 עינת, זה המסמך המעודכן עם כל ה-endpoints ומבנה ה-DB.
 עודכן: 2026-11-22.
 
+> **🆕** — סימון ל-endpoints וטבלאות שלא היו בתוכנית המקורית (onboarding doc) ונוספו תוך כדי פיתוח.
+
 ---
 
 ## Database — SQLite
@@ -40,6 +42,20 @@ exceedances_israel          exceedances_who          agent_results
 │ severity        │    │ severity         │    │ created_at            │
 └─────────────────┘    └──────────────────┘    │ result_json (TEXT)    │
                                                └──────────────────────┘
+
+🆕 fire_hotspots (נתוני שריפות מלווין — NASA FIRMS)
+┌──────────────────────────────────────────────┐
+│ id  PK (autoincrement)                       │
+│ latitude, longitude                          │
+│ acq_date (YYYY-MM-DD), acq_time (HHMM)      │
+│ satellite (N/N20/N21)                        │
+│ confidence (low/nominal/high)                │
+│ frp (MW — Fire Radiative Power)              │
+│ bright_ti4 (K — טמפרטורת בהירות)             │
+│ daynight (D/N)                               │
+│ source (VIIRS_SNPP_NRT / VIIRS_NOAA20_NRT)  │
+│ UNIQUE(lat, lon, acq_date, acq_time, sat)   │
+└──────────────────────────────────────────────┘
 ```
 
 ### severity
@@ -58,6 +74,7 @@ exceedances_israel          exceedances_who          agent_results
 | exceedances_israel | ~823 |
 | exceedances_who | ~29.5K |
 | agent_results | 0 (ריקה — מחכה ל-agents שלך) |
+| fire_hotspots 🆕 | ~4 (נתוני שריפות מ-NASA FIRMS) |
 
 ---
 
@@ -124,9 +141,9 @@ GET /readings?station_id=6524&pollutant=no2&limit=3
 ]
 ```
 
-### GET /exceedances/israel
+### 🆕 GET /exceedances/israel
 
-חריגות מסף איכות אוויר ישראלי (ערך שעתי מעל הסף).
+**לא היה בתוכנית המקורית.** חריגות מסף איכות אוויר ישראלי (ערך שעתי מעל הסף).
 
 | פרמטר | חובה | תיאור |
 |-------|------|-------|
@@ -153,9 +170,9 @@ GET /readings?station_id=6524&pollutant=no2&limit=3
 ]
 ```
 
-### GET /exceedances/who
+### 🆕 GET /exceedances/who
 
-חריגות מהנחיות WHO 2021 (ממוצע רץ מעל הסף).
+**לא היה בתוכנית המקורית.** חריגות מהנחיות WHO 2021 (ממוצע רץ מעל הסף).
 
 פרמטרים — זהים ל-`/exceedances/israel`.
 
@@ -177,9 +194,9 @@ GET /readings?station_id=6524&pollutant=no2&limit=3
 ]
 ```
 
-### GET /agent-results
+### 🆕 GET /agent-results
 
-תוצאות של ה-agents (Root Cause / Alert / Sensor Health).
+**לא היה בתוכנית המקורית.** תוצאות של ה-agents (Root Cause / Alert / Sensor Health).
 
 | פרמטר | חובה | תיאור |
 |-------|------|-------|
@@ -206,9 +223,9 @@ conn.commit()
 conn.close()
 ```
 
-### GET /stations/{station_id}/health
+### 🆕 GET /stations/{station_id}/health
 
-מצב תחנה — מתי דיווחה לאחרונה, זמינות, מזהמים פעילים.
+**לא היה בתוכנית המקורית.** מצב תחנה — מתי דיווחה לאחרונה, זמינות, מזהמים פעילים.
 
 ```
 GET /stations/6524/health
@@ -225,6 +242,45 @@ GET /stations/6524/health
   "coverage_pct": 98.5
 }
 ```
+
+### 🆕 GET /fires/nearby
+
+**לא היה בתוכנית המקורית.** שריפות פעילות ליד תחנת ניטור — נתונים מלווייני VIIRS (NASA FIRMS). ה-Root Cause Agent ישתמש במידע הזה כדי להסביר חריגות באיכות אוויר.
+
+| פרמטר | חובה | תיאור |
+|-------|------|-------|
+| station_id | כן | מזהה תחנה |
+| radius_km | לא | רדיוס חיפוש ב-km (ברירת מחדל: 50, מקסימום: 200) |
+| days | לא | ימי lookback (ברירת מחדל: 7, מקסימום: 30) |
+| limit | לא | ברירת מחדל: 100 |
+
+```
+GET /fires/nearby?station_id=6524&radius_km=50&days=7
+```
+
+```json
+[
+  {
+    "id": 1,
+    "latitude": 32.311,
+    "longitude": 35.154,
+    "acq_date": "2026-11-21",
+    "acq_time": "1119",
+    "satellite": "N20",
+    "confidence": "nominal",
+    "frp": 3.46,
+    "bright_ti4": null,
+    "daynight": "D",
+    "source": "VIIRS_NOAA20_NRT",
+    "distance_km": 19.5
+  }
+]
+```
+
+**שדות חשובים:**
+- `frp` — Fire Radiative Power ב-MW. ככל שהערך גבוה יותר, השריפה חזקה יותר
+- `confidence` — רמת הביטחון של הלווין: low / nominal / high
+- `distance_km` — מרחק מהתחנה ב-km (מחושב, ממוין מהקרוב לרחוק)
 
 ### GET /anomalies
 
@@ -291,4 +347,6 @@ python -m uvicorn src.api.main:app --port 8000 --reload
 
 4. **agent_results** — הטבלה הזו היא הממשק בין ה-agents שלך ל-dashboard. ה-agents כותבים אליה, ה-dashboard קורא ממנה דרך `/agent-results`.
 
-5. **agent_io.py — שימי לב** — ה-schemas ב-`src/schemas/agent_io.py` (כמו `InvestigationRequest`) משתמשים ב-`event_id` ו-`anomaly_score` שמתאימים לאנומליות ML. אבל טבלת `agent_results` ב-DB מקשרת לחריגות דרך `exceedance_type` + `exceedance_id`. כשתבני את ה-agents, תצטרכי להחליט אם הם עובדים עם exceedances (מה-DB), עם anomalies (מ-ML), או עם שניהם. נדבר על זה.
+5. **נתוני שריפות (NASA FIRMS)** — טבלה חדשה `fire_hotspots` ו-endpoint `/fires/nearby`. נתונים מלווייני VIIRS על שריפות פעילות באזור ישראל. ה-Root Cause Agent ישתמש בנתונים כדי לזהות אם חריגה נגרמה משריפה קרובה.
+
+6. **agent_io.py — שימי לב** — ה-schemas ב-`src/schemas/agent_io.py` (כמו `InvestigationRequest`) משתמשים ב-`event_id` ו-`anomaly_score` שמתאימים לאנומליות ML. אבל טבלת `agent_results` ב-DB מקשרת לחריגות דרך `exceedance_type` + `exceedance_id`. כשתבני את ה-agents, תצטרכי להחליט אם הם עובדים עם exceedances (מה-DB), עם anomalies (מ-ML), או עם שניהם. נדבר על זה.
