@@ -36,6 +36,34 @@ class WeatherReading(BaseModel):
     rain_mm: float | None = None
 
 
+class ExceedanceIsrael(BaseModel):
+    """An Israeli Clean Air standard exceedance."""
+
+    id: int
+    measurement_id: int
+    station_id: str
+    timestamp: datetime
+    pollutant: str
+    value: float
+    threshold: float
+    ratio: float
+    severity: str
+
+
+class ExceedanceWHO(BaseModel):
+    """A WHO 2021 guideline exceedance (rolling average)."""
+
+    id: int
+    station_id: str
+    window_end: datetime
+    pollutant: str
+    window_hours: int
+    avg_value: float
+    threshold: float
+    ratio: float
+    severity: str
+
+
 class HealthStatus(BaseModel):
     """Health check response for the API."""
 

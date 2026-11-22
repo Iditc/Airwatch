@@ -1,46 +1,31 @@
 """AirWatch REST API — air quality data and anomaly detection endpoints."""
 
 import json
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.data.loader import ISRAEL_THRESHOLDS, WHO_THRESHOLDS, short_name
+from src.data.database import get_connection
+from src.data.loader import ISRAEL_THRESHOLDS, WHO_THRESHOLDS
 from src.schemas.anomaly import AnomalyEvent
-from src.schemas.api import AQIReading, HealthStatus, StationInfo
+from src.schemas.api import (
+    AQIReading,
+    ExceedanceIsrael,
+    ExceedanceWHO,
+    HealthStatus,
+    StationInfo,
+)
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-EVENTS_DIR = DATA_DIR / "events"
-
-_state: dict = {}
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    stations_df = pd.read_parquet(DATA_DIR / "raw" / "stations.parquet")
-    stations_df["station_id"] = stations_df["station_id"].astype(str)
-    _state["stations"] = stations_df
-
-    measurements = pd.read_parquet(DATA_DIR / "processed" / "measurements_clean.parquet")
-    measurements["timestamp"] = pd.to_datetime(measurements["timestamp"], utc=True)
-    _state["measurements"] = measurements
-    _state["active_ids"] = measurements["station_id"].unique().tolist()
-
-    yield
-    _state.clear()
+EVENTS_DIR = Path(__file__).parent.parent.parent / "data" / "events"
 
 
 app = FastAPI(
     title="AirWatch API",
     description="Real-time air quality monitoring and anomaly detection for Israel",
     version="0.1.0",
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -53,30 +38,35 @@ app.add_middleware(
 
 @app.get("/health", response_model=HealthStatus)
 async def health() -> HealthStatus:
+    conn = get_connection()
+    count = conn.execute("SELECT COUNT(DISTINCT station_id) FROM measurements").fetchone()[0]
+    conn.close()
     return HealthStatus(
         status="ok",
         version="0.1.0",
         timestamp=datetime.now(timezone.utc),
-        stations_monitored=len(_state["active_ids"]),
+        stations_monitored=count,
     )
 
 
 @app.get("/stations", response_model=list[StationInfo])
 async def get_stations() -> list[StationInfo]:
-    df = _state["stations"]
-    active = df[df["station_id"].isin(_state["active_ids"])]
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT station_id, short_name, city, latitude, longitude, pollutants "
+        "FROM stations WHERE station_id IN (SELECT DISTINCT station_id FROM measurements)"
+    ).fetchall()
+    conn.close()
     return [
         StationInfo(
-            station_id=str(row["station_id"]),
-            name=short_name(row["name"]),
-            city=row.get("city", "Unknown") or "Unknown",
-            latitude=row["latitude"],
-            longitude=row["longitude"],
-            pollutants=row["pollutants"].split(",")
-            if isinstance(row["pollutants"], str)
-            else row["pollutants"],
+            station_id=r["station_id"],
+            name=r["short_name"] or r["station_id"],
+            city=r["city"] or "Unknown",
+            latitude=r["latitude"],
+            longitude=r["longitude"],
+            pollutants=r["pollutants"].split(",") if r["pollutants"] else [],
         )
-        for _, row in active.iterrows()
+        for r in rows
     ]
 
 
@@ -86,21 +76,106 @@ async def get_readings(
     pollutant: str | None = Query(None, description="Filter by pollutant"),
     limit: int = Query(200, ge=1, le=5000),
 ) -> list[AQIReading]:
-    df = _state["measurements"]
-    mask = df["station_id"] == station_id
+    conn = get_connection()
+    sql = (
+        "SELECT station_id, timestamp, pollutant, value, unit "
+        "FROM measurements WHERE station_id = ?"
+    )
+    params: list = [station_id]
     if pollutant:
-        mask &= df["pollutant"] == pollutant
-    subset = df[mask].sort_values("timestamp", ascending=False).head(limit)
-
+        sql += " AND pollutant = ?"
+        params.append(pollutant)
+    sql += " ORDER BY timestamp DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
     return [
         AQIReading(
-            station_id=row["station_id"],
-            timestamp=row["timestamp"],
-            pollutant=row["pollutant"],
-            value=row["value"],
-            unit=row["unit"],
+            station_id=r["station_id"],
+            timestamp=datetime.fromisoformat(r["timestamp"]),
+            pollutant=r["pollutant"],
+            value=r["value"],
+            unit=r["unit"],
         )
-        for _, row in subset.iterrows()
+        for r in rows
+    ]
+
+
+@app.get("/exceedances/israel", response_model=list[ExceedanceIsrael])
+async def get_exceedances_israel(
+    station_id: str | None = Query(None, description="Filter by station"),
+    pollutant: str | None = Query(None, description="Filter by pollutant"),
+    severity: str | None = Query(None, description="Filter by severity (low/medium/high)"),
+    limit: int = Query(200, ge=1, le=5000),
+) -> list[ExceedanceIsrael]:
+    conn = get_connection()
+    sql = "SELECT * FROM exceedances_israel WHERE 1=1"
+    params: list = []
+    if station_id:
+        sql += " AND station_id = ?"
+        params.append(station_id)
+    if pollutant:
+        sql += " AND pollutant = ?"
+        params.append(pollutant)
+    if severity:
+        sql += " AND severity = ?"
+        params.append(severity)
+    sql += " ORDER BY timestamp DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [
+        ExceedanceIsrael(
+            id=r["id"],
+            measurement_id=r["measurement_id"],
+            station_id=r["station_id"],
+            timestamp=datetime.fromisoformat(r["timestamp"]),
+            pollutant=r["pollutant"],
+            value=r["value"],
+            threshold=r["threshold"],
+            ratio=r["ratio"],
+            severity=r["severity"],
+        )
+        for r in rows
+    ]
+
+
+@app.get("/exceedances/who", response_model=list[ExceedanceWHO])
+async def get_exceedances_who(
+    station_id: str | None = Query(None, description="Filter by station"),
+    pollutant: str | None = Query(None, description="Filter by pollutant"),
+    severity: str | None = Query(None, description="Filter by severity (low/medium/high)"),
+    limit: int = Query(200, ge=1, le=5000),
+) -> list[ExceedanceWHO]:
+    conn = get_connection()
+    sql = "SELECT * FROM exceedances_who WHERE 1=1"
+    params: list = []
+    if station_id:
+        sql += " AND station_id = ?"
+        params.append(station_id)
+    if pollutant:
+        sql += " AND pollutant = ?"
+        params.append(pollutant)
+    if severity:
+        sql += " AND severity = ?"
+        params.append(severity)
+    sql += " ORDER BY window_end DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [
+        ExceedanceWHO(
+            id=r["id"],
+            station_id=r["station_id"],
+            window_end=datetime.fromisoformat(r["window_end"]),
+            pollutant=r["pollutant"],
+            window_hours=r["window_hours"],
+            avg_value=r["avg_value"],
+            threshold=r["threshold"],
+            ratio=r["ratio"],
+            severity=r["severity"],
+        )
+        for r in rows
     ]
 
 

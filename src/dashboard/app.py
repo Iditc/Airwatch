@@ -8,6 +8,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from src.data.database import get_connection
+
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 EVENTS_DIR = DATA_DIR / "events"
 
@@ -28,9 +30,12 @@ st.set_page_config(page_title="AirWatch", page_icon="🌬️", layout="wide")
 
 @st.cache_data
 def load_stations() -> pd.DataFrame:
-    df = pd.read_parquet(DATA_DIR / "raw" / "stations.parquet")
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT * FROM stations", conn)
+    conn.close()
     df["station_id"] = df["station_id"].astype(str)
-    df["short_name"] = df["name"].str.replace("תחנה:", "", regex=False)
+    if "short_name" not in df.columns or df["short_name"].isna().all():
+        df["short_name"] = df["name"].str.replace("תחנה:", "", regex=False)
     for sid, (lat, lon) in STATION_COORD_FIXES.items():
         mask = df["station_id"] == sid
         df.loc[mask, "latitude"] = lat
@@ -38,9 +43,13 @@ def load_stations() -> pd.DataFrame:
     return df
 
 
-@st.cache_data
+@st.cache_data(ttl=300)
 def load_measurements() -> pd.DataFrame:
-    df = pd.read_parquet(DATA_DIR / "processed" / "measurements_clean.parquet")
+    conn = get_connection()
+    df = pd.read_sql_query(
+        "SELECT timestamp, station_id, pollutant, value, unit FROM measurements", conn
+    )
+    conn.close()
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df
 
@@ -73,7 +82,7 @@ def render_sidebar(active_stations: pd.DataFrame) -> tuple[str, str]:
     )
 
     st.sidebar.divider()
-    st.sidebar.caption("Data: OpenAQ v3 API")
+    st.sidebar.caption("Data: OpenAQ v3 + WAQI API")
     st.sidebar.caption("Models: XGBoost (retrained 2026-11-16)")
 
     return selected_id, pollutant
@@ -143,6 +152,9 @@ def render_timeseries(
         st.info("No data for this station and pollutant.")
         return
 
+    cutoff = data["timestamp"].max() - pd.DateOffset(months=3)
+    data = data[data["timestamp"] >= cutoff]
+
     fig = px.line(data, x="timestamp", y="value", height=500)
     fig.update_traces(line=dict(width=1, color="#3B82F6"))
 
@@ -152,6 +164,7 @@ def render_timeseries(
             line_dash="dash",
             line_color="#EF4444",
             annotation_text="Israel limit",
+            annotation_position="bottom right",
         )
     if pollutant in WHO_THRESHOLDS:
         fig.add_hline(
@@ -159,12 +172,17 @@ def render_timeseries(
             line_dash="dot",
             line_color="#F97316",
             annotation_text="WHO guideline",
+            annotation_position="bottom right",
         )
 
+    y_max = data["value"].max()
+    if pollutant in ISRAEL_THRESHOLDS:
+        y_max = max(y_max, ISRAEL_THRESHOLDS[pollutant])
     fig.update_layout(
         xaxis_title="",
         yaxis_title=f"{POLLUTANT_LABELS[pollutant]} ({data.iloc[0]['unit']})",
-        margin=dict(l=0, r=0, t=0, b=0),
+        yaxis_range=[0, y_max * 1.15],
+        margin=dict(l=0, r=80, t=0, b=0),
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -221,15 +239,15 @@ def main() -> None:
     render_metrics(active_ids, measurements, events_df, selected_id, pollutant)
 
     st.divider()
-    map_col, chart_col = st.columns([1, 2])
-
-    with map_col:
-        st.subheader("📍 Stations")
-        render_map(active_stations, selected_id)
+    chart_col, map_col = st.columns([2, 1])
 
     with chart_col:
         st.subheader(f"📈 {POLLUTANT_LABELS[pollutant]} — {selected_name}")
         render_timeseries(measurements, selected_id, pollutant, selected_name)
+
+    with map_col:
+        st.subheader("📍 Stations")
+        render_map(active_stations, selected_id)
 
     st.divider()
     st.subheader("🚨 Anomaly Events")
