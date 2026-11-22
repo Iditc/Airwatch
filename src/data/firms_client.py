@@ -16,31 +16,30 @@ ISRAEL_BBOX = "34,29,36,34"  # west,south,east,north
 SOURCES = ["VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT"]
 BUFFER_KM = 10.0
 
-# Simplified Israel border polygon — (lat, lon) pairs.
-# Source: johan/world.geo.json countries/ISR.geo.json
+# Israel border polygon including Judea & Samaria — (lat, lon) pairs.
+# Western/northern border from johan/world.geo.json, eastern border
+# follows the Jordan River and Dead Sea western shore.
 ISRAEL_POLYGON: list[tuple[float, float]] = [
-    (32.709192, 35.719918),
-    (32.393992, 35.545665),
-    (32.532511, 35.183930),
-    (31.866582, 34.974641),
-    (31.754341, 35.225892),
-    (31.616778, 34.970507),
-    (31.353435, 34.927408),
-    (31.489086, 35.397561),
-    (31.100066, 35.420918),
-    (29.501326, 34.922603),
-    (31.219361, 34.265433),
-    (31.548824, 34.556372),
-    (31.605539, 34.488107),
-    (32.072926, 34.752587),
-    (32.827376, 34.955417),
-    (33.080539, 35.098457),
-    (33.090900, 35.126053),
-    (33.089040, 35.460709),
-    (33.264275, 35.552797),
-    (33.277426, 35.821101),
-    (32.868123, 35.836397),
-    (32.716014, 35.700798),
+    (32.709192, 35.719918),  # Golan south
+    (32.393992, 35.545665),  # upper Jordan Valley
+    (32.10, 35.57),  # central Jordan Valley
+    (31.85, 35.55),  # lower Jordan Valley (Jericho)
+    (31.78, 35.53),  # northern Dead Sea
+    (31.50, 35.40),  # central Dead Sea
+    (31.100066, 35.420918),  # southern Dead Sea
+    (29.501326, 34.922603),  # Eilat
+    (31.219361, 34.265433),  # coast near Gaza
+    (31.548824, 34.556372),  # coast
+    (31.605539, 34.488107),  # coast
+    (32.072926, 34.752587),  # Tel Aviv coast
+    (32.827376, 34.955417),  # Haifa coast
+    (33.080539, 35.098457),  # northern border
+    (33.090900, 35.126053),  # northern border
+    (33.089040, 35.460709),  # northern border east
+    (33.264275, 35.552797),  # northern tip
+    (33.277426, 35.821101),  # Golan north
+    (32.868123, 35.836397),  # Golan east
+    (32.716014, 35.700798),  # Golan south-east
 ]
 
 
