@@ -235,8 +235,7 @@ async def get_station_health(station_id: str) -> StationHealth:
         return StationHealth(station_id=station_id, name=station_id)
 
     last = conn.execute(
-        "SELECT timestamp FROM measurements "
-        "WHERE station_id = ? ORDER BY timestamp DESC LIMIT 1",
+        "SELECT timestamp FROM measurements WHERE station_id = ? ORDER BY timestamp DESC LIMIT 1",
         (station_id,),
     ).fetchone()
 
@@ -253,7 +252,7 @@ async def get_station_health(station_id: str) -> StationHealth:
     now = datetime.now(timezone.utc)
     week_ago = (now - timedelta(days=7)).isoformat()
     week_count = conn.execute(
-        "SELECT COUNT(*) FROM measurements " "WHERE station_id = ? AND timestamp >= ?",
+        "SELECT COUNT(*) FROM measurements WHERE station_id = ? AND timestamp >= ?",
         (station_id, week_ago),
     ).fetchone()[0]
     conn.close()
