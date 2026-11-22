@@ -64,6 +64,29 @@ class ExceedanceWHO(BaseModel):
     severity: str
 
 
+class AgentResult(BaseModel):
+    """An agent investigation result linked to an exceedance."""
+
+    id: int
+    exceedance_type: str
+    exceedance_id: int
+    agent_type: str
+    created_at: datetime
+    result_json: str
+
+
+class StationHealth(BaseModel):
+    """Health status for a monitoring station."""
+
+    station_id: str
+    name: str
+    last_reading: datetime | None = None
+    hours_since_last: float | None = None
+    total_readings: int = 0
+    pollutants_active: list[str] = Field(default_factory=list)
+    coverage_pct: float = Field(default=0.0, description="Data coverage over the last 7 days")
+
+
 class HealthStatus(BaseModel):
     """Health check response for the API."""
 

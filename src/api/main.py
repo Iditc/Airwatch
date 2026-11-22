@@ -1,7 +1,7 @@
 """AirWatch REST API — air quality data and anomaly detection endpoints."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,10 +12,12 @@ from src.data.database import get_connection
 from src.data.loader import ISRAEL_THRESHOLDS, WHO_THRESHOLDS
 from src.schemas.anomaly import AnomalyEvent
 from src.schemas.api import (
+    AgentResult,
     AQIReading,
     ExceedanceIsrael,
     ExceedanceWHO,
     HealthStatus,
+    StationHealth,
     StationInfo,
 )
 
@@ -177,6 +179,100 @@ async def get_exceedances_who(
         )
         for r in rows
     ]
+
+
+@app.get("/agent-results", response_model=list[AgentResult])
+async def get_agent_results(
+    exceedance_type: str | None = Query(None, description="Filter by type (israel/who)"),
+    exceedance_id: int | None = Query(None, description="Filter by exceedance ID"),
+    agent_type: str | None = Query(
+        None,
+        description="Filter by agent (root_cause/alert/sensor_health)",
+    ),
+    limit: int = Query(100, ge=1, le=1000),
+) -> list[AgentResult]:
+    conn = get_connection()
+    sql = "SELECT * FROM agent_results WHERE 1=1"
+    params: list = []
+    if exceedance_type:
+        sql += " AND exceedance_type = ?"
+        params.append(exceedance_type)
+    if exceedance_id is not None:
+        sql += " AND exceedance_id = ?"
+        params.append(exceedance_id)
+    if agent_type:
+        sql += " AND agent_type = ?"
+        params.append(agent_type)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [
+        AgentResult(
+            id=r["id"],
+            exceedance_type=r["exceedance_type"],
+            exceedance_id=r["exceedance_id"],
+            agent_type=r["agent_type"],
+            created_at=datetime.fromisoformat(r["created_at"]),
+            result_json=r["result_json"],
+        )
+        for r in rows
+    ]
+
+
+@app.get(
+    "/stations/{station_id}/health",
+    response_model=StationHealth,
+)
+async def get_station_health(station_id: str) -> StationHealth:
+    conn = get_connection()
+    station = conn.execute(
+        "SELECT station_id, short_name FROM stations WHERE station_id = ?",
+        (station_id,),
+    ).fetchone()
+    if not station:
+        conn.close()
+        return StationHealth(station_id=station_id, name=station_id)
+
+    last = conn.execute(
+        "SELECT timestamp FROM measurements "
+        "WHERE station_id = ? ORDER BY timestamp DESC LIMIT 1",
+        (station_id,),
+    ).fetchone()
+
+    total = conn.execute(
+        "SELECT COUNT(*) FROM measurements WHERE station_id = ?",
+        (station_id,),
+    ).fetchone()[0]
+
+    pollutants = conn.execute(
+        "SELECT DISTINCT pollutant FROM measurements WHERE station_id = ?",
+        (station_id,),
+    ).fetchall()
+
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=7)).isoformat()
+    week_count = conn.execute(
+        "SELECT COUNT(*) FROM measurements " "WHERE station_id = ? AND timestamp >= ?",
+        (station_id, week_ago),
+    ).fetchone()[0]
+    conn.close()
+
+    last_ts = datetime.fromisoformat(last["timestamp"]) if last else None
+    hours_since = (now - last_ts).total_seconds() / 3600 if last_ts else None
+    n_pollutants = len(pollutants)
+    expected_week = 7 * 24 * n_pollutants if n_pollutants else 1
+    coverage = round(min(week_count / expected_week * 100, 100.0), 1)
+
+    return StationHealth(
+        station_id=station_id,
+        name=station["short_name"] or station_id,
+        last_reading=last_ts,
+        hours_since_last=round(hours_since, 1) if hours_since else None,
+        total_readings=total,
+        pollutants_active=[r["pollutant"] for r in pollutants],
+        coverage_pct=coverage,
+    )
 
 
 @app.get("/anomalies", response_model=list[AnomalyEvent])
