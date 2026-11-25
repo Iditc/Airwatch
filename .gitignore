@@ -22,6 +22,7 @@ env/
 
 # Data (raw files and databases)
 data/
+!/data/knowledge_base/knowledge_base_workflow.md
 
 # Results (generated figures and trained models)
 results/figures/
@@ -44,3 +45,10 @@ coverage.xml
 
 # ruff
 .ruff_cache/
+
+# Local SQLite knowledge base and sidecar files
+/data/knowledge_base/knowledge_base.sqlite3*
+
+# Local knowledge exports, research batches, and databases
+/data/knowledge_base/**
+!/data/knowledge_base/knowledge_base_workflow.md
