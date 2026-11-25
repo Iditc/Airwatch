@@ -20,17 +20,13 @@ env/
 .env
 .env.local
 
-# Data (raw files too large for git)
-data/raw/
-/data/knowledge_base/**
+# Data (raw files and databases)
+data/
 !/data/knowledge_base/knowledge_base_workflow.md
-*.csv
-*.parquet
 
-# Models
-models/*.pt
-models/*.pkl
-models/*.joblib
+# Results (generated figures and trained models)
+results/figures/
+results/models/
 
 # OS
 .DS_Store
