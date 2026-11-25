@@ -20,15 +20,12 @@ env/
 .env
 .env.local
 
-# Data (raw files too large for git)
-data/raw/
-*.csv
-*.parquet
+# Data (raw files and databases)
+data/
 
-# Models
-models/*.pt
-models/*.pkl
-models/*.joblib
+# Results (generated figures and trained models)
+results/figures/
+results/models/
 
 # OS
 .DS_Store
